@@ -5,47 +5,47 @@ import "github.com/gnagel/dog_pool/dog_pool"
 import "testing"
 import "github.com/orfjackal/gospec/src/gospec"
 
-func TestRedisHashFieldCounterSpecs(t *testing.T) {
+func TestRedisHashFieldCounterFloat64Specs(t *testing.T) {
 	if testing.Short() {
 		t.Skip("skipping test in benchmark mode.")
 		return
 	}
 	r := gospec.NewRunner()
-	r.AddSpec(RedisHashFieldCounterSpecs)
+	r.AddSpec(RedisHashFieldCounterFloat64Specs)
 	gospec.MainGoTest(r, t)
 }
 
-func RedisHashFieldCounterSpecs(c gospec.Context) {
+func RedisHashFieldCounterFloat64Specs(c gospec.Context) {
 
-	c.Specify("[RedisHashFieldCounter][Make] Makes new instance", func() {
-		value, err := MakeRedisHashFieldCounter(nil, "", "")
+	c.Specify("[RedisHashFieldCounterFloat64][Make] Makes new instance", func() {
+		value, err := MakeRedisHashFieldCounterFloat64(nil, "", "")
 		c.Expect(err.Error(), gospec.Equals, "Nil redis connection")
 		c.Expect(value, gospec.Satisfies, nil == value)
 
-		value, err = MakeRedisHashFieldCounter(&dog_pool.RedisConnection{}, "", "")
+		value, err = MakeRedisHashFieldCounterFloat64(&dog_pool.RedisConnection{}, "", "")
 		c.Expect(err.Error(), gospec.Equals, "Empty redis key")
 		c.Expect(value, gospec.Satisfies, nil == value)
 
-		value, err = MakeRedisHashFieldCounter(&dog_pool.RedisConnection{}, "Bob", "")
+		value, err = MakeRedisHashFieldCounterFloat64(&dog_pool.RedisConnection{}, "Bob", "")
 		c.Expect(err.Error(), gospec.Equals, "Empty redis field")
 		c.Expect(value, gospec.Satisfies, nil == value)
 
-		value, err = MakeRedisHashFieldCounter(&dog_pool.RedisConnection{}, "Bob", "Field")
+		value, err = MakeRedisHashFieldCounterFloat64(&dog_pool.RedisConnection{}, "Bob", "Field")
 		c.Expect(err, gospec.Equals, nil)
 		c.Expect(value, gospec.Satisfies, nil != value)
 	})
 
-	c.Specify("[RedisHashFieldCounter][String] Formats string", func() {
-		value, _ := MakeRedisHashFieldCounter(&dog_pool.RedisConnection{}, "Bob", "Field")
+	c.Specify("[RedisHashFieldCounterFloat64][String] Formats string", func() {
+		value, _ := MakeRedisHashFieldCounterFloat64(&dog_pool.RedisConnection{}, "Bob", "Field")
 		value.LastValue = nil
 		c.Expect(value.String(), gospec.Equals, "Bob[Field] = NaN")
 
-		counter := int64(123)
+		counter := float64(123.456)
 		value.LastValue = &counter
-		c.Expect(value.String(), gospec.Equals, "Bob[Field] = 123")
+		c.Expect(value.String(), gospec.Equals, "Bob[Field] = 123.456000")
 	})
 
-	c.Specify("[RedisHashFieldCounter][Exists] Redis Operation", func() {
+	c.Specify("[RedisHashFieldCounterFloat64][Exists] Redis Operation", func() {
 		logger := log4go.NewDefaultLogger(log4go.CRITICAL)
 		server, server_err := dog_pool.StartRedisServer(&logger)
 		if nil != server_err {
@@ -53,10 +53,10 @@ func RedisHashFieldCounterSpecs(c gospec.Context) {
 		}
 		defer server.Close()
 
-		value, _ := MakeRedisHashFieldCounter(server.Connection(), "Bob", "Field")
+		value, _ := MakeRedisHashFieldCounterFloat64(server.Connection(), "Bob", "Field")
 
 		// Valid number:
-		server.Connection().Cmd("HSET", "Bob", "Field", "123")
+		server.Connection().Cmd("HSET", "Bob", "Field", "123.456")
 		ok, err := value.Exists()
 		c.Expect(err, gospec.Equals, nil)
 		c.Expect(ok, gospec.Equals, true)
@@ -70,7 +70,7 @@ func RedisHashFieldCounterSpecs(c gospec.Context) {
 		c.Expect(value.LastValue, gospec.Satisfies, nil == value.LastValue)
 	})
 
-	c.Specify("[RedisHashFieldCounter][Int64] Gets value from Redis", func() {
+	c.Specify("[RedisHashFieldCounterFloat64][Float64] Gets value from Redis", func() {
 		logger := log4go.NewDefaultLogger(log4go.CRITICAL)
 		server, server_err := dog_pool.StartRedisServer(&logger)
 		if nil != server_err {
@@ -78,32 +78,32 @@ func RedisHashFieldCounterSpecs(c gospec.Context) {
 		}
 		defer server.Close()
 
-		value, _ := MakeRedisHashFieldCounter(server.Connection(), "Bob", "Field")
+		value, _ := MakeRedisHashFieldCounterFloat64(server.Connection(), "Bob", "Field")
 
 		// Valid number:
-		server.Connection().Cmd("HSET", "Bob", "Field", "123")
-		counter, err := value.Int64()
+		server.Connection().Cmd("HSET", "Bob", "Field", "123.456")
+		counter, err := value.Float64()
 		c.Expect(err, gospec.Equals, nil)
-		c.Expect(counter, gospec.Equals, int64(123))
+		c.Expect(counter, gospec.Equals, float64(123.456))
 		c.Expect(value.LastValue, gospec.Satisfies, nil != value.LastValue)
-		c.Expect(*value.LastValue, gospec.Equals, int64(123))
+		c.Expect(*value.LastValue, gospec.Equals, float64(123.456))
 
 		// Cache Miss
 		server.Connection().Cmd("HDEL", "Bob", "Field")
-		counter, err = value.Int64()
+		counter, err = value.Float64()
 		c.Expect(err, gospec.Equals, nil)
-		c.Expect(counter, gospec.Equals, int64(0))
+		c.Expect(counter, gospec.Equals, float64(0))
 		c.Expect(value.LastValue, gospec.Satisfies, nil == value.LastValue)
 
 		// Parsing error:
 		server.Connection().Cmd("HSET", "Bob", "Field", "Gary")
-		counter, err = value.Int64()
+		counter, err = value.Float64()
 		c.Expect(err, gospec.Satisfies, nil != err)
-		c.Expect(counter, gospec.Equals, int64(0))
+		c.Expect(counter, gospec.Equals, float64(0))
 		c.Expect(value.LastValue, gospec.Satisfies, nil == value.LastValue)
 	})
 
-	c.Specify("[RedisHashFieldCounter][Get] Redis Operation", func() {
+	c.Specify("[RedisHashFieldCounterFloat64][Get] Redis Operation", func() {
 		logger := log4go.NewDefaultLogger(log4go.CRITICAL)
 		server, server_err := dog_pool.StartRedisServer(&logger)
 		if nil != server_err {
@@ -111,32 +111,32 @@ func RedisHashFieldCounterSpecs(c gospec.Context) {
 		}
 		defer server.Close()
 
-		value, _ := MakeRedisHashFieldCounter(server.Connection(), "Bob", "Field")
+		value, _ := MakeRedisHashFieldCounterFloat64(server.Connection(), "Bob", "Field")
 
 		// Valid number:
-		server.Connection().Cmd("HSET", "Bob", "Field", "123")
+		server.Connection().Cmd("HSET", "Bob", "Field", "123.456")
 		counter, err := value.Get()
 		c.Expect(err, gospec.Equals, nil)
-		c.Expect(counter, gospec.Equals, int64(123))
+		c.Expect(counter, gospec.Equals, float64(123.456))
 		c.Expect(value.LastValue, gospec.Satisfies, nil != value.LastValue)
-		c.Expect(*value.LastValue, gospec.Equals, int64(123))
+		c.Expect(*value.LastValue, gospec.Equals, float64(123.456))
 
 		// Cache Miss
 		server.Connection().Cmd("HDEL", "Bob", "Field")
 		counter, err = value.Get()
 		c.Expect(err, gospec.Equals, nil)
-		c.Expect(counter, gospec.Equals, int64(0))
+		c.Expect(counter, gospec.Equals, float64(0))
 		c.Expect(value.LastValue, gospec.Satisfies, nil == value.LastValue)
 
 		// Parsing error:
 		server.Connection().Cmd("HSET", "Bob", "Field", "Gary")
 		counter, err = value.Get()
 		c.Expect(err, gospec.Satisfies, nil != err)
-		c.Expect(counter, gospec.Equals, int64(0))
+		c.Expect(counter, gospec.Equals, float64(0))
 		c.Expect(value.LastValue, gospec.Satisfies, nil == value.LastValue)
 	})
 
-	c.Specify("[RedisHashFieldCounter][Delete] Redis Operation", func() {
+	c.Specify("[RedisHashFieldCounterFloat64][Delete] Redis Operation", func() {
 		logger := log4go.NewDefaultLogger(log4go.CRITICAL)
 		server, server_err := dog_pool.StartRedisServer(&logger)
 		if nil != server_err {
@@ -144,10 +144,10 @@ func RedisHashFieldCounterSpecs(c gospec.Context) {
 		}
 		defer server.Close()
 
-		value, _ := MakeRedisHashFieldCounter(server.Connection(), "Bob", "Field")
+		value, _ := MakeRedisHashFieldCounterFloat64(server.Connection(), "Bob", "Field")
 
 		// Valid number:
-		server.Connection().Cmd("HSET", "Bob", "Field", "123")
+		server.Connection().Cmd("HSET", "Bob", "Field", "123.456")
 		err := value.Delete()
 		c.Expect(err, gospec.Equals, nil)
 		c.Expect(value.LastValue, gospec.Satisfies, nil == value.LastValue)
@@ -156,7 +156,7 @@ func RedisHashFieldCounterSpecs(c gospec.Context) {
 		c.Expect(ok, gospec.Equals, 0)
 	})
 
-	c.Specify("[RedisHashFieldCounter][Set] Redis Operation", func() {
+	c.Specify("[RedisHashFieldCounterFloat64][Set] Redis Operation", func() {
 		logger := log4go.NewDefaultLogger(log4go.CRITICAL)
 		server, server_err := dog_pool.StartRedisServer(&logger)
 		if nil != server_err {
@@ -164,20 +164,19 @@ func RedisHashFieldCounterSpecs(c gospec.Context) {
 		}
 		defer server.Close()
 
-		value, _ := MakeRedisHashFieldCounter(server.Connection(), "Bob", "Field")
+		value, _ := MakeRedisHashFieldCounterFloat64(server.Connection(), "Bob", "Field")
 
-		counter, err := value.Set(123)
+		counter, err := value.Set(123.456)
 		c.Expect(err, gospec.Equals, nil)
-		c.Expect(counter, gospec.Equals, int64(123))
+		c.Expect(counter, gospec.Equals, float64(123.456))
 		c.Expect(value.LastValue, gospec.Satisfies, nil != value.LastValue)
-		c.Expect(*value.LastValue, gospec.Equals, int64(123))
+		c.Expect(*value.LastValue, gospec.Equals, float64(123.456))
 
-		counter, err = server.Connection().Cmd("HGET", "Bob", "Field").Int64()
-		c.Expect(err, gospec.Equals, nil)
-		c.Expect(counter, gospec.Equals, int64(123))
+		str, _ := server.Connection().Cmd("HGET", "Bob", "Field").Str()
+		c.Expect(str, gospec.Equals, "123.456")
 	})
 
-	c.Specify("[RedisHashFieldCounter][Add] Redis Operation", func() {
+	c.Specify("[RedisHashFieldCounterFloat64][Add] Redis Operation", func() {
 		logger := log4go.NewDefaultLogger(log4go.CRITICAL)
 		server, server_err := dog_pool.StartRedisServer(&logger)
 		if nil != server_err {
@@ -185,22 +184,21 @@ func RedisHashFieldCounterSpecs(c gospec.Context) {
 		}
 		defer server.Close()
 
-		value, _ := MakeRedisHashFieldCounter(server.Connection(), "Bob", "Field")
+		value, _ := MakeRedisHashFieldCounterFloat64(server.Connection(), "Bob", "Field")
 
 		// Valid number:
-		server.Connection().Cmd("HSET", "Bob", "Field", "123")
+		server.Connection().Cmd("HSET", "Bob", "Field", "123.456")
 		counter, err := value.Add(555)
 		c.Expect(err, gospec.Equals, nil)
-		c.Expect(counter, gospec.Equals, int64(123+555))
+		c.Expect(counter, gospec.Equals, float64(123.456+555))
 		c.Expect(value.LastValue, gospec.Satisfies, nil != value.LastValue)
-		c.Expect(*value.LastValue, gospec.Equals, int64(123+555))
+		c.Expect(*value.LastValue, gospec.Equals, float64(123.456+555))
 
-		counter, err = server.Connection().Cmd("HGET", "Bob", "Field").Int64()
-		c.Expect(err, gospec.Equals, nil)
-		c.Expect(counter, gospec.Equals, int64(123+555))
+		str, _ := server.Connection().Cmd("HGET", "Bob", "Field").Str()
+		c.Expect(str, gospec.Equals, "678.45600000000000002")
 	})
 
-	c.Specify("[RedisHashFieldCounter][Sub] Redis Operation", func() {
+	c.Specify("[RedisHashFieldCounterFloat64][Sub] Redis Operation", func() {
 		logger := log4go.NewDefaultLogger(log4go.CRITICAL)
 		server, server_err := dog_pool.StartRedisServer(&logger)
 		if nil != server_err {
@@ -208,22 +206,21 @@ func RedisHashFieldCounterSpecs(c gospec.Context) {
 		}
 		defer server.Close()
 
-		value, _ := MakeRedisHashFieldCounter(server.Connection(), "Bob", "Field")
+		value, _ := MakeRedisHashFieldCounterFloat64(server.Connection(), "Bob", "Field")
 
 		// Valid number:
-		server.Connection().Cmd("HSET", "Bob", "Field", "123")
+		server.Connection().Cmd("HSET", "Bob", "Field", "123.456")
 		counter, err := value.Sub(555)
 		c.Expect(err, gospec.Equals, nil)
-		c.Expect(counter, gospec.Equals, int64(123-555))
+		c.Expect(counter, gospec.Equals, float64(123.456-555))
 		c.Expect(value.LastValue, gospec.Satisfies, nil != value.LastValue)
-		c.Expect(*value.LastValue, gospec.Equals, int64(123-555))
+		c.Expect(*value.LastValue, gospec.Equals, float64(123.456-555))
 
-		counter, err = server.Connection().Cmd("HGET", "Bob", "Field").Int64()
-		c.Expect(err, gospec.Equals, nil)
-		c.Expect(counter, gospec.Equals, int64(123-555))
+		str, _ := server.Connection().Cmd("HGET", "Bob", "Field").Str()
+		c.Expect(str, gospec.Equals, "-431.54399999999999998")
 	})
 
-	c.Specify("[RedisHashFieldCounter][Increment] Redis Operation", func() {
+	c.Specify("[RedisHashFieldCounterFloat64][Increment] Redis Operation", func() {
 		logger := log4go.NewDefaultLogger(log4go.CRITICAL)
 		server, server_err := dog_pool.StartRedisServer(&logger)
 		if nil != server_err {
@@ -231,22 +228,21 @@ func RedisHashFieldCounterSpecs(c gospec.Context) {
 		}
 		defer server.Close()
 
-		value, _ := MakeRedisHashFieldCounter(server.Connection(), "Bob", "Field")
+		value, _ := MakeRedisHashFieldCounterFloat64(server.Connection(), "Bob", "Field")
 
 		// Valid number:
-		server.Connection().Cmd("HSET", "Bob", "Field", "123")
+		server.Connection().Cmd("HSET", "Bob", "Field", "123.456")
 		counter, err := value.Increment()
 		c.Expect(err, gospec.Equals, nil)
-		c.Expect(counter, gospec.Equals, int64(123+1))
+		c.Expect(counter, gospec.Equals, float64(123.456+1))
 		c.Expect(value.LastValue, gospec.Satisfies, nil != value.LastValue)
-		c.Expect(*value.LastValue, gospec.Equals, int64(123+1))
+		c.Expect(*value.LastValue, gospec.Equals, float64(123.456+1))
 
-		counter, err = server.Connection().Cmd("HGET", "Bob", "Field").Int64()
-		c.Expect(err, gospec.Equals, nil)
-		c.Expect(counter, gospec.Equals, int64(123+1))
+		str, _ := server.Connection().Cmd("HGET", "Bob", "Field").Str()
+		c.Expect(str, gospec.Equals, "124.456")
 	})
 
-	c.Specify("[RedisHashFieldCounter][Decrement] Redis Operation", func() {
+	c.Specify("[RedisHashFieldCounterFloat64][Decrement] Redis Operation", func() {
 		logger := log4go.NewDefaultLogger(log4go.CRITICAL)
 		server, server_err := dog_pool.StartRedisServer(&logger)
 		if nil != server_err {
@@ -254,37 +250,36 @@ func RedisHashFieldCounterSpecs(c gospec.Context) {
 		}
 		defer server.Close()
 
-		value, _ := MakeRedisHashFieldCounter(server.Connection(), "Bob", "Field")
+		value, _ := MakeRedisHashFieldCounterFloat64(server.Connection(), "Bob", "Field")
 
 		// Valid number:
-		server.Connection().Cmd("HSET", "Bob", "Field", "123")
+		server.Connection().Cmd("HSET", "Bob", "Field", "123.456")
 		counter, err := value.Decrement()
 		c.Expect(err, gospec.Equals, nil)
-		c.Expect(counter, gospec.Equals, int64(123-1))
+		c.Expect(counter, gospec.Equals, float64(123.456-1))
 		c.Expect(value.LastValue, gospec.Satisfies, nil != value.LastValue)
-		c.Expect(*value.LastValue, gospec.Equals, int64(123-1))
+		c.Expect(*value.LastValue, gospec.Equals, float64(123.456-1))
 
-		counter, err = server.Connection().Cmd("HGET", "Bob", "Field").Int64()
-		c.Expect(err, gospec.Equals, nil)
-		c.Expect(counter, gospec.Equals, int64(123-1))
+		str, _ := server.Connection().Cmd("HGET", "Bob", "Field").Str()
+		c.Expect(str, gospec.Equals, "122.456")
 	})
 
 }
 
-func Benchmark_RedisHashFieldCounter_Make(b *testing.B) {
+func Benchmark_RedisHashFieldCounterFloat64_Make(b *testing.B) {
 	for i := 0; i < b.N; i++ {
-		MakeRedisHashFieldCounter(&dog_pool.RedisConnection{}, "Bob", "Field")
+		MakeRedisHashFieldCounterFloat64(&dog_pool.RedisConnection{}, "Bob", "Field")
 	}
 }
 
-func Benchmark_RedisHashFieldCounter_String(b *testing.B) {
-	value, _ := MakeRedisHashFieldCounter(&dog_pool.RedisConnection{}, "Bob", "Field")
+func Benchmark_RedisHashFieldCounterFloat64_String(b *testing.B) {
+	value, _ := MakeRedisHashFieldCounterFloat64(&dog_pool.RedisConnection{}, "Bob", "Field")
 	for i := 0; i < b.N; i++ {
 		value.String()
 	}
 }
 
-func Benchmark_RedisHashFieldCounter_Exists(b *testing.B) {
+func Benchmark_RedisHashFieldCounterFloat64_Exists(b *testing.B) {
 	logger := log4go.NewDefaultLogger(log4go.CRITICAL)
 	server, err := dog_pool.StartRedisServer(&logger)
 	if nil != err {
@@ -292,10 +287,10 @@ func Benchmark_RedisHashFieldCounter_Exists(b *testing.B) {
 	}
 	defer server.Close()
 
-	value, _ := MakeRedisHashFieldCounter(server.Connection(), "Bob", "Field")
+	value, _ := MakeRedisHashFieldCounterFloat64(server.Connection(), "Bob", "Field")
 
 	// Valid number:
-	server.Connection().Cmd("HSET", "Bob", "Field", "123")
+	server.Connection().Cmd("HSET", "Bob", "Field", "123.456")
 
 	b.ResetTimer()
 
@@ -304,7 +299,7 @@ func Benchmark_RedisHashFieldCounter_Exists(b *testing.B) {
 	}
 }
 
-func Benchmark_RedisHashFieldCounter_Int64_ValidNumber(b *testing.B) {
+func Benchmark_RedisHashFieldCounterFloat64_Float64_ValidNumber(b *testing.B) {
 	logger := log4go.NewDefaultLogger(log4go.CRITICAL)
 	server, err := dog_pool.StartRedisServer(&logger)
 	if nil != err {
@@ -312,19 +307,19 @@ func Benchmark_RedisHashFieldCounter_Int64_ValidNumber(b *testing.B) {
 	}
 	defer server.Close()
 
-	value, _ := MakeRedisHashFieldCounter(server.Connection(), "Bob", "Field")
+	value, _ := MakeRedisHashFieldCounterFloat64(server.Connection(), "Bob", "Field")
 
 	// Valid number:
-	server.Connection().Cmd("HSET", "Bob", "Field", "123")
+	server.Connection().Cmd("HSET", "Bob", "Field", "123.456")
 
 	b.ResetTimer()
 
 	for i := 0; i < b.N; i++ {
-		value.Int64()
+		value.Float64()
 	}
 }
 
-func Benchmark_RedisHashFieldCounter_Int64_CacheMiss(b *testing.B) {
+func Benchmark_RedisHashFieldCounterFloat64_Float64_CacheMiss(b *testing.B) {
 	logger := log4go.NewDefaultLogger(log4go.CRITICAL)
 	server, err := dog_pool.StartRedisServer(&logger)
 	if nil != err {
@@ -332,16 +327,16 @@ func Benchmark_RedisHashFieldCounter_Int64_CacheMiss(b *testing.B) {
 	}
 	defer server.Close()
 
-	value, _ := MakeRedisHashFieldCounter(server.Connection(), "Bob", "Field")
+	value, _ := MakeRedisHashFieldCounterFloat64(server.Connection(), "Bob", "Field")
 
 	b.ResetTimer()
 
 	for i := 0; i < b.N; i++ {
-		value.Int64()
+		value.Float64()
 	}
 }
 
-func Benchmark_RedisHashFieldCounter_Int64_InvalidNumber(b *testing.B) {
+func Benchmark_RedisHashFieldCounterFloat64_Float64_InvalidNumber(b *testing.B) {
 	logger := log4go.NewDefaultLogger(log4go.CRITICAL)
 	server, err := dog_pool.StartRedisServer(&logger)
 	if nil != err {
@@ -349,7 +344,7 @@ func Benchmark_RedisHashFieldCounter_Int64_InvalidNumber(b *testing.B) {
 	}
 	defer server.Close()
 
-	value, _ := MakeRedisHashFieldCounter(server.Connection(), "Bob", "Field")
+	value, _ := MakeRedisHashFieldCounterFloat64(server.Connection(), "Bob", "Field")
 
 	// Valid number:
 	server.Connection().Cmd("HSET", "Bob", "Field", "Gary")
@@ -357,11 +352,11 @@ func Benchmark_RedisHashFieldCounter_Int64_InvalidNumber(b *testing.B) {
 	b.ResetTimer()
 
 	for i := 0; i < b.N; i++ {
-		value.Int64()
+		value.Float64()
 	}
 }
 
-func Benchmark_RedisHashFieldCounter_Get(b *testing.B) {
+func Benchmark_RedisHashFieldCounterFloat64_Get(b *testing.B) {
 	logger := log4go.NewDefaultLogger(log4go.CRITICAL)
 	server, err := dog_pool.StartRedisServer(&logger)
 	if nil != err {
@@ -369,10 +364,10 @@ func Benchmark_RedisHashFieldCounter_Get(b *testing.B) {
 	}
 	defer server.Close()
 
-	value, _ := MakeRedisHashFieldCounter(server.Connection(), "Bob", "Field")
+	value, _ := MakeRedisHashFieldCounterFloat64(server.Connection(), "Bob", "Field")
 
 	// Valid number:
-	server.Connection().Cmd("HSET", "Bob", "Field", "123")
+	server.Connection().Cmd("HSET", "Bob", "Field", "123.456")
 
 	b.ResetTimer()
 
@@ -381,7 +376,7 @@ func Benchmark_RedisHashFieldCounter_Get(b *testing.B) {
 	}
 }
 
-func Benchmark_RedisHashFieldCounter_Set(b *testing.B) {
+func Benchmark_RedisHashFieldCounterFloat64_Set(b *testing.B) {
 	logger := log4go.NewDefaultLogger(log4go.CRITICAL)
 	server, err := dog_pool.StartRedisServer(&logger)
 	if nil != err {
@@ -389,7 +384,7 @@ func Benchmark_RedisHashFieldCounter_Set(b *testing.B) {
 	}
 	defer server.Close()
 
-	value, _ := MakeRedisHashFieldCounter(server.Connection(), "Bob", "Field")
+	value, _ := MakeRedisHashFieldCounterFloat64(server.Connection(), "Bob", "Field")
 
 	// Valid number:
 	server.Connection().Cmd("HSET", "Bob", "Field", "000")
@@ -397,11 +392,11 @@ func Benchmark_RedisHashFieldCounter_Set(b *testing.B) {
 	b.ResetTimer()
 
 	for i := 0; i < b.N; i++ {
-		value.Set(123)
+		value.Set(123.456)
 	}
 }
 
-func Benchmark_RedisHashFieldCounter_Delete(b *testing.B) {
+func Benchmark_RedisHashFieldCounterFloat64_Delete(b *testing.B) {
 	logger := log4go.NewDefaultLogger(log4go.CRITICAL)
 	server, err := dog_pool.StartRedisServer(&logger)
 	if nil != err {
@@ -409,7 +404,7 @@ func Benchmark_RedisHashFieldCounter_Delete(b *testing.B) {
 	}
 	defer server.Close()
 
-	value, _ := MakeRedisHashFieldCounter(server.Connection(), "Bob", "Field")
+	value, _ := MakeRedisHashFieldCounterFloat64(server.Connection(), "Bob", "Field")
 
 	b.ResetTimer()
 
@@ -418,7 +413,7 @@ func Benchmark_RedisHashFieldCounter_Delete(b *testing.B) {
 	}
 }
 
-func Benchmark_RedisHashFieldCounter_Add(b *testing.B) {
+func Benchmark_RedisHashFieldCounterFloat64_Add(b *testing.B) {
 	logger := log4go.NewDefaultLogger(log4go.CRITICAL)
 	server, err := dog_pool.StartRedisServer(&logger)
 	if nil != err {
@@ -426,7 +421,7 @@ func Benchmark_RedisHashFieldCounter_Add(b *testing.B) {
 	}
 	defer server.Close()
 
-	value, _ := MakeRedisHashFieldCounter(server.Connection(), "Bob", "Field")
+	value, _ := MakeRedisHashFieldCounterFloat64(server.Connection(), "Bob", "Field")
 
 	b.ResetTimer()
 
@@ -435,7 +430,7 @@ func Benchmark_RedisHashFieldCounter_Add(b *testing.B) {
 	}
 }
 
-func Benchmark_RedisHashFieldCounter_Sub(b *testing.B) {
+func Benchmark_RedisHashFieldCounterFloat64_Sub(b *testing.B) {
 	logger := log4go.NewDefaultLogger(log4go.CRITICAL)
 	server, err := dog_pool.StartRedisServer(&logger)
 	if nil != err {
@@ -443,7 +438,7 @@ func Benchmark_RedisHashFieldCounter_Sub(b *testing.B) {
 	}
 	defer server.Close()
 
-	value, _ := MakeRedisHashFieldCounter(server.Connection(), "Bob", "Field")
+	value, _ := MakeRedisHashFieldCounterFloat64(server.Connection(), "Bob", "Field")
 
 	b.ResetTimer()
 
@@ -452,7 +447,7 @@ func Benchmark_RedisHashFieldCounter_Sub(b *testing.B) {
 	}
 }
 
-func Benchmark_RedisHashFieldCounter_Increment(b *testing.B) {
+func Benchmark_RedisHashFieldCounterFloat64_Increment(b *testing.B) {
 	logger := log4go.NewDefaultLogger(log4go.CRITICAL)
 	server, err := dog_pool.StartRedisServer(&logger)
 	if nil != err {
@@ -460,7 +455,7 @@ func Benchmark_RedisHashFieldCounter_Increment(b *testing.B) {
 	}
 	defer server.Close()
 
-	value, _ := MakeRedisHashFieldCounter(server.Connection(), "Bob", "Field")
+	value, _ := MakeRedisHashFieldCounterFloat64(server.Connection(), "Bob", "Field")
 
 	b.ResetTimer()
 
@@ -469,7 +464,7 @@ func Benchmark_RedisHashFieldCounter_Increment(b *testing.B) {
 	}
 }
 
-func Benchmark_RedisHashFieldCounter_Decrement(b *testing.B) {
+func Benchmark_RedisHashFieldCounterFloat64_Decrement(b *testing.B) {
 	logger := log4go.NewDefaultLogger(log4go.CRITICAL)
 	server, err := dog_pool.StartRedisServer(&logger)
 	if nil != err {
@@ -477,7 +472,7 @@ func Benchmark_RedisHashFieldCounter_Decrement(b *testing.B) {
 	}
 	defer server.Close()
 
-	value, _ := MakeRedisHashFieldCounter(server.Connection(), "Bob", "Field")
+	value, _ := MakeRedisHashFieldCounterFloat64(server.Connection(), "Bob", "Field")
 
 	b.ResetTimer()
 

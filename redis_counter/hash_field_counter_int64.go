@@ -2,16 +2,15 @@ package redis_counter
 
 import "fmt"
 import "github.com/gnagel/dog_pool/dog_pool"
-import "github.com/fzzy/radix/redis"
 
-type RedisHashFieldCounter struct {
+type RedisHashFieldCounterInt64 struct {
 	Redis      dog_pool.RedisClientInterface
 	KEY, FIELD string
 	LastValue  *int64
 }
 
-// Make a new instance of RedisHashFieldCounter
-func MakeRedisHashFieldCounter(redis dog_pool.RedisClientInterface, key, field string) (*RedisHashFieldCounter, error) {
+// Make a new instance of RedisHashFieldCounterInt64
+func MakeRedisHashFieldCounterInt64(redis dog_pool.RedisClientInterface, key, field string) (*RedisHashFieldCounterInt64, error) {
 	switch {
 	case nil == redis:
 		return nil, fmt.Errorf("Nil redis connection")
@@ -20,12 +19,12 @@ func MakeRedisHashFieldCounter(redis dog_pool.RedisClientInterface, key, field s
 	case len(field) == 0:
 		return nil, fmt.Errorf("Empty redis field")
 	default:
-		return &RedisHashFieldCounter{redis, key, field, nil}, nil
+		return &RedisHashFieldCounterInt64{redis, key, field, nil}, nil
 	}
 }
 
 // Format the value as a string; uses the cached "LastValue" field
-func (p *RedisHashFieldCounter) String() string {
+func (p *RedisHashFieldCounterInt64) String() string {
 	switch p.LastValue {
 	case nil:
 		return fmt.Sprintf("%s[%s] = NaN", p.KEY, p.FIELD)
@@ -35,11 +34,11 @@ func (p *RedisHashFieldCounter) String() string {
 }
 
 // Get the value of the counter; saves the counter to "LastValue"
-func (p *RedisHashFieldCounter) Int64() (int64, error) {
+func (p *RedisHashFieldCounterInt64) Int64() (int64, error) {
 	return p.operationReturnsAmount("HGET")
 }
 
-func (p *RedisHashFieldCounter) Exists() (bool, error) {
+func (p *RedisHashFieldCounterInt64) Exists() (bool, error) {
 	p.LastValue = nil
 	reply := p.Redis.Cmd("HEXISTS", p.KEY, p.FIELD)
 	if nil != reply.Err {
@@ -54,33 +53,33 @@ func (p *RedisHashFieldCounter) Exists() (bool, error) {
 	return ok == 1, nil
 }
 
-func (p *RedisHashFieldCounter) Delete() error {
+func (p *RedisHashFieldCounterInt64) Delete() error {
 	p.LastValue = nil
 	reply := p.Redis.Cmd("HDEL", p.KEY, p.FIELD)
 	return reply.Err
 }
 
-func (p *RedisHashFieldCounter) Get() (int64, error) {
+func (p *RedisHashFieldCounterInt64) Get() (int64, error) {
 	return p.Int64()
 }
 
-func (p *RedisHashFieldCounter) Set(amount int64) (int64, error) {
+func (p *RedisHashFieldCounterInt64) Set(amount int64) (int64, error) {
 	return p.operationReplacesAmount("HSET", amount)
 }
 
-func (p *RedisHashFieldCounter) Add(amount int64) (int64, error) {
+func (p *RedisHashFieldCounterInt64) Add(amount int64) (int64, error) {
 	return p.operationModifiesAmount("HINCRBY", amount)
 }
 
-func (p *RedisHashFieldCounter) Sub(amount int64) (int64, error) {
+func (p *RedisHashFieldCounterInt64) Sub(amount int64) (int64, error) {
 	return p.Add(-1 * amount)
 }
 
-func (p *RedisHashFieldCounter) Increment() (int64, error) {
+func (p *RedisHashFieldCounterInt64) Increment() (int64, error) {
 	return p.Add(1)
 }
 
-func (p *RedisHashFieldCounter) Decrement() (int64, error) {
+func (p *RedisHashFieldCounterInt64) Decrement() (int64, error) {
 	return p.Sub(1)
 }
 
@@ -88,43 +87,37 @@ func (p *RedisHashFieldCounter) Decrement() (int64, error) {
 // Internal Helpers:
 //
 
-func (p *RedisHashFieldCounter) operationReturnsAmount(cmd string) (int64, error) {
+func (p *RedisHashFieldCounterInt64) operationReturnsAmount(cmd string) (int64, error) {
 	p.LastValue = nil
 	reply := p.Redis.Cmd(cmd, p.KEY, p.FIELD)
+	ptr, err := toInt64Ptr(reply)
 	switch {
-	case nil != reply.Err:
-		return 0, reply.Err
-	case redis.NilReply == reply.Type:
-		return 0, nil
+	case nil != err:
+		return 0, err
+	case nil != ptr:
+		p.LastValue = ptr
+		return *ptr, nil
 	default:
-		value, err := reply.Int64()
-		if nil != err {
-			return 0, err
-		}
-
-		p.LastValue = &value
-		return value, nil
+		return 0, nil
 	}
 }
 
-func (p *RedisHashFieldCounter) operationModifiesAmount(cmd string, amount int64) (int64, error) {
+func (p *RedisHashFieldCounterInt64) operationModifiesAmount(cmd string, amount int64) (int64, error) {
 	p.LastValue = nil
 	reply := p.Redis.Cmd(cmd, p.KEY, p.FIELD, amount)
+	ptr, err := toInt64Ptr(reply)
 	switch {
-	case nil != reply.Err:
-		return 0, reply.Err
+	case nil != err:
+		return 0, err
+	case nil != ptr:
+		p.LastValue = ptr
+		return *ptr, nil
 	default:
-		value, err := reply.Int64()
-		if nil != err {
-			return 0, err
-		}
-
-		p.LastValue = &value
-		return value, nil
+		return 0, nil
 	}
 }
 
-func (p *RedisHashFieldCounter) operationReplacesAmount(cmd string, amount int64) (int64, error) {
+func (p *RedisHashFieldCounterInt64) operationReplacesAmount(cmd string, amount int64) (int64, error) {
 	p.LastValue = nil
 	reply := p.Redis.Cmd(cmd, p.KEY, p.FIELD, amount)
 	switch {

@@ -5,43 +5,43 @@ import "github.com/gnagel/dog_pool/dog_pool"
 import "testing"
 import "github.com/orfjackal/gospec/src/gospec"
 
-func TestRedisKeyCounterSpecs(t *testing.T) {
+func TestRedisKeyCounterFloat64Specs(t *testing.T) {
 	if testing.Short() {
 		t.Skip("skipping test in benchmark mode.")
 		return
 	}
 	r := gospec.NewRunner()
-	r.AddSpec(RedisKeyCounterSpecs)
+	r.AddSpec(RedisKeyCounterFloat64Specs)
 	gospec.MainGoTest(r, t)
 }
 
-func RedisKeyCounterSpecs(c gospec.Context) {
+func RedisKeyCounterFloat64Specs(c gospec.Context) {
 
-	c.Specify("[RedisKeyCounter][Make] Makes new instance", func() {
-		value, err := MakeRedisKeyCounter(nil, "")
+	c.Specify("[RedisKeyCounterFloat64][Make] Makes new instance", func() {
+		value, err := MakeRedisKeyCounterFloat64(nil, "")
 		c.Expect(err.Error(), gospec.Equals, "Nil redis connection")
 		c.Expect(value, gospec.Satisfies, nil == value)
 
-		value, err = MakeRedisKeyCounter(&dog_pool.RedisConnection{}, "")
+		value, err = MakeRedisKeyCounterFloat64(&dog_pool.RedisConnection{}, "")
 		c.Expect(err.Error(), gospec.Equals, "Empty redis key")
 		c.Expect(value, gospec.Satisfies, nil == value)
 
-		value, err = MakeRedisKeyCounter(&dog_pool.RedisConnection{}, "Bob")
+		value, err = MakeRedisKeyCounterFloat64(&dog_pool.RedisConnection{}, "Bob")
 		c.Expect(err, gospec.Equals, nil)
 		c.Expect(value, gospec.Satisfies, nil != value)
 	})
 
-	c.Specify("[RedisKeyCounter][String] Formats string", func() {
-		value, _ := MakeRedisKeyCounter(&dog_pool.RedisConnection{}, "Bob")
+	c.Specify("[RedisKeyCounterFloat64][String] Formats string", func() {
+		value, _ := MakeRedisKeyCounterFloat64(&dog_pool.RedisConnection{}, "Bob")
 		value.LastValue = nil
 		c.Expect(value.String(), gospec.Equals, "Bob = NaN")
 
-		counter := int64(123)
+		counter := float64(123.456)
 		value.LastValue = &counter
-		c.Expect(value.String(), gospec.Equals, "Bob = 123")
+		c.Expect(value.String(), gospec.Equals, "Bob = 123.456000")
 	})
 
-	c.Specify("[RedisKeyCounter][Exists] Redis Operation", func() {
+	c.Specify("[RedisKeyCounterFloat64][Exists] Redis Operation", func() {
 		logger := log4go.NewDefaultLogger(log4go.CRITICAL)
 		server, server_err := dog_pool.StartRedisServer(&logger)
 		if nil != server_err {
@@ -49,10 +49,10 @@ func RedisKeyCounterSpecs(c gospec.Context) {
 		}
 		defer server.Close()
 
-		value, _ := MakeRedisKeyCounter(server.Connection(), "Bob")
+		value, _ := MakeRedisKeyCounterFloat64(server.Connection(), "Bob")
 
 		// Valid number:
-		server.Connection().Cmd("SET", "Bob", "123")
+		server.Connection().Cmd("SET", "Bob", "123.456")
 		ok, err := value.Exists()
 		c.Expect(err, gospec.Equals, nil)
 		c.Expect(ok, gospec.Equals, true)
@@ -66,7 +66,7 @@ func RedisKeyCounterSpecs(c gospec.Context) {
 		c.Expect(value.LastValue, gospec.Satisfies, nil == value.LastValue)
 	})
 
-	c.Specify("[RedisKeyCounter][Int64] Gets value from Redis", func() {
+	c.Specify("[RedisKeyCounterFloat64][Float64] Gets value from Redis", func() {
 		logger := log4go.NewDefaultLogger(log4go.CRITICAL)
 		server, server_err := dog_pool.StartRedisServer(&logger)
 		if nil != server_err {
@@ -74,32 +74,32 @@ func RedisKeyCounterSpecs(c gospec.Context) {
 		}
 		defer server.Close()
 
-		value, _ := MakeRedisKeyCounter(server.Connection(), "Bob")
+		value, _ := MakeRedisKeyCounterFloat64(server.Connection(), "Bob")
 
 		// Valid number:
-		server.Connection().Cmd("SET", "Bob", "123")
-		counter, err := value.Int64()
+		server.Connection().Cmd("SET", "Bob", "123.456")
+		counter, err := value.Float64()
 		c.Expect(err, gospec.Equals, nil)
-		c.Expect(counter, gospec.Equals, int64(123))
+		c.Expect(counter, gospec.Equals, float64(123.456))
 		c.Expect(value.LastValue, gospec.Satisfies, nil != value.LastValue)
-		c.Expect(*value.LastValue, gospec.Equals, int64(123))
+		c.Expect(*value.LastValue, gospec.Equals, float64(123.456))
 
 		// Cache Miss
 		server.Connection().Cmd("DEL", "Bob")
-		counter, err = value.Int64()
+		counter, err = value.Float64()
 		c.Expect(err, gospec.Equals, nil)
-		c.Expect(counter, gospec.Equals, int64(0))
+		c.Expect(counter, gospec.Equals, float64(0))
 		c.Expect(value.LastValue, gospec.Satisfies, nil == value.LastValue)
 
 		// Parsing error:
 		server.Connection().Cmd("SET", "Bob", "Gary")
-		counter, err = value.Int64()
+		counter, err = value.Float64()
 		c.Expect(err, gospec.Satisfies, nil != err)
-		c.Expect(counter, gospec.Equals, int64(0))
+		c.Expect(counter, gospec.Equals, float64(0))
 		c.Expect(value.LastValue, gospec.Satisfies, nil == value.LastValue)
 	})
 
-	c.Specify("[RedisKeyCounter][Get] Redis Operation", func() {
+	c.Specify("[RedisKeyCounterFloat64][Get] Redis Operation", func() {
 		logger := log4go.NewDefaultLogger(log4go.CRITICAL)
 		server, server_err := dog_pool.StartRedisServer(&logger)
 		if nil != server_err {
@@ -107,32 +107,32 @@ func RedisKeyCounterSpecs(c gospec.Context) {
 		}
 		defer server.Close()
 
-		value, _ := MakeRedisKeyCounter(server.Connection(), "Bob")
+		value, _ := MakeRedisKeyCounterFloat64(server.Connection(), "Bob")
 
 		// Valid number:
-		server.Connection().Cmd("SET", "Bob", "123")
+		server.Connection().Cmd("SET", "Bob", "123.456")
 		counter, err := value.Get()
 		c.Expect(err, gospec.Equals, nil)
-		c.Expect(counter, gospec.Equals, int64(123))
+		c.Expect(counter, gospec.Equals, float64(123.456))
 		c.Expect(value.LastValue, gospec.Satisfies, nil != value.LastValue)
-		c.Expect(*value.LastValue, gospec.Equals, int64(123))
+		c.Expect(*value.LastValue, gospec.Equals, float64(123.456))
 
 		// Cache Miss
 		server.Connection().Cmd("DEL", "Bob")
 		counter, err = value.Get()
 		c.Expect(err, gospec.Equals, nil)
-		c.Expect(counter, gospec.Equals, int64(0))
+		c.Expect(counter, gospec.Equals, float64(0))
 		c.Expect(value.LastValue, gospec.Satisfies, nil == value.LastValue)
 
 		// Parsing error:
 		server.Connection().Cmd("SET", "Bob", "Gary")
 		counter, err = value.Get()
 		c.Expect(err, gospec.Satisfies, nil != err)
-		c.Expect(counter, gospec.Equals, int64(0))
+		c.Expect(counter, gospec.Equals, float64(0))
 		c.Expect(value.LastValue, gospec.Satisfies, nil == value.LastValue)
 	})
 
-	c.Specify("[RedisKeyCounter][Delete] Redis Operation", func() {
+	c.Specify("[RedisKeyCounterFloat64][Delete] Redis Operation", func() {
 		logger := log4go.NewDefaultLogger(log4go.CRITICAL)
 		server, server_err := dog_pool.StartRedisServer(&logger)
 		if nil != server_err {
@@ -140,10 +140,10 @@ func RedisKeyCounterSpecs(c gospec.Context) {
 		}
 		defer server.Close()
 
-		value, _ := MakeRedisKeyCounter(server.Connection(), "Bob")
+		value, _ := MakeRedisKeyCounterFloat64(server.Connection(), "Bob")
 
 		// Valid number:
-		server.Connection().Cmd("SET", "Bob", "123")
+		server.Connection().Cmd("SET", "Bob", "123.456")
 		err := value.Delete()
 		c.Expect(err, gospec.Equals, nil)
 		c.Expect(value.LastValue, gospec.Satisfies, nil == value.LastValue)
@@ -152,7 +152,7 @@ func RedisKeyCounterSpecs(c gospec.Context) {
 		c.Expect(ok, gospec.Equals, 0)
 	})
 
-	c.Specify("[RedisKeyCounter][Set] Redis Operation", func() {
+	c.Specify("[RedisKeyCounterFloat64][Set] Redis Operation", func() {
 		logger := log4go.NewDefaultLogger(log4go.CRITICAL)
 		server, server_err := dog_pool.StartRedisServer(&logger)
 		if nil != server_err {
@@ -160,20 +160,19 @@ func RedisKeyCounterSpecs(c gospec.Context) {
 		}
 		defer server.Close()
 
-		value, _ := MakeRedisKeyCounter(server.Connection(), "Bob")
+		value, _ := MakeRedisKeyCounterFloat64(server.Connection(), "Bob")
 
-		counter, err := value.Set(123)
+		counter, err := value.Set(123.456)
 		c.Expect(err, gospec.Equals, nil)
-		c.Expect(counter, gospec.Equals, int64(123))
+		c.Expect(counter, gospec.Equals, float64(123.456))
 		c.Expect(value.LastValue, gospec.Satisfies, nil != value.LastValue)
-		c.Expect(*value.LastValue, gospec.Equals, int64(123))
+		c.Expect(*value.LastValue, gospec.Equals, float64(123.456))
 
-		counter, err = server.Connection().Cmd("GET", "Bob").Int64()
-		c.Expect(err, gospec.Equals, nil)
-		c.Expect(counter, gospec.Equals, int64(123))
+		str, _ := server.Connection().Cmd("GET", "Bob").Str()
+		c.Expect(str, gospec.Equals, "123.456")
 	})
 
-	c.Specify("[RedisKeyCounter][Add] Redis Operation", func() {
+	c.Specify("[RedisKeyCounterFloat64][Add] Redis Operation", func() {
 		logger := log4go.NewDefaultLogger(log4go.CRITICAL)
 		server, server_err := dog_pool.StartRedisServer(&logger)
 		if nil != server_err {
@@ -181,22 +180,21 @@ func RedisKeyCounterSpecs(c gospec.Context) {
 		}
 		defer server.Close()
 
-		value, _ := MakeRedisKeyCounter(server.Connection(), "Bob")
+		value, _ := MakeRedisKeyCounterFloat64(server.Connection(), "Bob")
 
 		// Valid number:
-		server.Connection().Cmd("SET", "Bob", "123")
+		server.Connection().Cmd("SET", "Bob", "123.456")
 		counter, err := value.Add(555)
 		c.Expect(err, gospec.Equals, nil)
-		c.Expect(counter, gospec.Equals, int64(123+555))
+		c.Expect(counter, gospec.Equals, float64(123.456+555))
 		c.Expect(value.LastValue, gospec.Satisfies, nil != value.LastValue)
-		c.Expect(*value.LastValue, gospec.Equals, int64(123+555))
+		c.Expect(*value.LastValue, gospec.Equals, float64(123.456+555))
 
-		counter, err = server.Connection().Cmd("GET", "Bob").Int64()
-		c.Expect(err, gospec.Equals, nil)
-		c.Expect(counter, gospec.Equals, int64(123+555))
+		str, _ := server.Connection().Cmd("GET", "Bob").Str()
+		c.Expect(str, gospec.Equals, "678.45600000000000002")
 	})
 
-	c.Specify("[RedisKeyCounter][Sub] Redis Operation", func() {
+	c.Specify("[RedisKeyCounterFloat64][Sub] Redis Operation", func() {
 		logger := log4go.NewDefaultLogger(log4go.CRITICAL)
 		server, server_err := dog_pool.StartRedisServer(&logger)
 		if nil != server_err {
@@ -204,22 +202,21 @@ func RedisKeyCounterSpecs(c gospec.Context) {
 		}
 		defer server.Close()
 
-		value, _ := MakeRedisKeyCounter(server.Connection(), "Bob")
+		value, _ := MakeRedisKeyCounterFloat64(server.Connection(), "Bob")
 
 		// Valid number:
-		server.Connection().Cmd("SET", "Bob", "123")
+		server.Connection().Cmd("SET", "Bob", "123.456")
 		counter, err := value.Sub(555)
 		c.Expect(err, gospec.Equals, nil)
-		c.Expect(counter, gospec.Equals, int64(123-555))
+		c.Expect(counter, gospec.Equals, float64(123.456-555))
 		c.Expect(value.LastValue, gospec.Satisfies, nil != value.LastValue)
-		c.Expect(*value.LastValue, gospec.Equals, int64(123-555))
+		c.Expect(*value.LastValue, gospec.Equals, float64(123.456-555))
 
-		counter, err = server.Connection().Cmd("GET", "Bob").Int64()
-		c.Expect(err, gospec.Equals, nil)
-		c.Expect(counter, gospec.Equals, int64(123-555))
+		str, _ := server.Connection().Cmd("GET", "Bob").Str()
+		c.Expect(str, gospec.Equals, "-431.54399999999999998")
 	})
 
-	c.Specify("[RedisKeyCounter][Increment] Redis Operation", func() {
+	c.Specify("[RedisKeyCounterFloat64][Increment] Redis Operation", func() {
 		logger := log4go.NewDefaultLogger(log4go.CRITICAL)
 		server, server_err := dog_pool.StartRedisServer(&logger)
 		if nil != server_err {
@@ -227,22 +224,21 @@ func RedisKeyCounterSpecs(c gospec.Context) {
 		}
 		defer server.Close()
 
-		value, _ := MakeRedisKeyCounter(server.Connection(), "Bob")
+		value, _ := MakeRedisKeyCounterFloat64(server.Connection(), "Bob")
 
 		// Valid number:
-		server.Connection().Cmd("SET", "Bob", "123")
+		server.Connection().Cmd("SET", "Bob", "123.456")
 		counter, err := value.Increment()
 		c.Expect(err, gospec.Equals, nil)
-		c.Expect(counter, gospec.Equals, int64(123+1))
+		c.Expect(counter, gospec.Equals, float64(123.456+1))
 		c.Expect(value.LastValue, gospec.Satisfies, nil != value.LastValue)
-		c.Expect(*value.LastValue, gospec.Equals, int64(123+1))
+		c.Expect(*value.LastValue, gospec.Equals, float64(123.456+1))
 
-		counter, err = server.Connection().Cmd("GET", "Bob").Int64()
-		c.Expect(err, gospec.Equals, nil)
-		c.Expect(counter, gospec.Equals, int64(123+1))
+		str, _ := server.Connection().Cmd("GET", "Bob").Str()
+		c.Expect(str, gospec.Equals, "124.456")
 	})
 
-	c.Specify("[RedisKeyCounter][Decrement] Redis Operation", func() {
+	c.Specify("[RedisKeyCounterFloat64][Decrement] Redis Operation", func() {
 		logger := log4go.NewDefaultLogger(log4go.CRITICAL)
 		server, server_err := dog_pool.StartRedisServer(&logger)
 		if nil != server_err {
@@ -250,37 +246,36 @@ func RedisKeyCounterSpecs(c gospec.Context) {
 		}
 		defer server.Close()
 
-		value, _ := MakeRedisKeyCounter(server.Connection(), "Bob")
+		value, _ := MakeRedisKeyCounterFloat64(server.Connection(), "Bob")
 
 		// Valid number:
-		server.Connection().Cmd("SET", "Bob", "123")
+		server.Connection().Cmd("SET", "Bob", "123.456")
 		counter, err := value.Decrement()
 		c.Expect(err, gospec.Equals, nil)
-		c.Expect(counter, gospec.Equals, int64(123-1))
+		c.Expect(counter, gospec.Equals, float64(123.456-1))
 		c.Expect(value.LastValue, gospec.Satisfies, nil != value.LastValue)
-		c.Expect(*value.LastValue, gospec.Equals, int64(123-1))
+		c.Expect(*value.LastValue, gospec.Equals, float64(123.456-1))
 
-		counter, err = server.Connection().Cmd("GET", "Bob").Int64()
-		c.Expect(err, gospec.Equals, nil)
-		c.Expect(counter, gospec.Equals, int64(123-1))
+		str, _ := server.Connection().Cmd("GET", "Bob").Str()
+		c.Expect(str, gospec.Equals, "122.456")
 	})
 
 }
 
-func Benchmark_RedisKeyCounter_Make(b *testing.B) {
+func Benchmark_RedisKeyCounterFloat64_Make(b *testing.B) {
 	for i := 0; i < b.N; i++ {
-		MakeRedisKeyCounter(&dog_pool.RedisConnection{}, "Bob")
+		MakeRedisKeyCounterFloat64(&dog_pool.RedisConnection{}, "Bob")
 	}
 }
 
-func Benchmark_RedisKeyCounter_String(b *testing.B) {
-	value, _ := MakeRedisKeyCounter(&dog_pool.RedisConnection{}, "Bob")
+func Benchmark_RedisKeyCounterFloat64_String(b *testing.B) {
+	value, _ := MakeRedisKeyCounterFloat64(&dog_pool.RedisConnection{}, "Bob")
 	for i := 0; i < b.N; i++ {
 		value.String()
 	}
 }
 
-func Benchmark_RedisKeyCounter_Exists(b *testing.B) {
+func Benchmark_RedisKeyCounterFloat64_Exists(b *testing.B) {
 	logger := log4go.NewDefaultLogger(log4go.CRITICAL)
 	server, err := dog_pool.StartRedisServer(&logger)
 	if nil != err {
@@ -288,10 +283,10 @@ func Benchmark_RedisKeyCounter_Exists(b *testing.B) {
 	}
 	defer server.Close()
 
-	value, _ := MakeRedisKeyCounter(server.Connection(), "Bob")
+	value, _ := MakeRedisKeyCounterFloat64(server.Connection(), "Bob")
 
 	// Valid number:
-	server.Connection().Cmd("SET", "Bob", "123")
+	server.Connection().Cmd("SET", "Bob", "123.456")
 
 	b.ResetTimer()
 
@@ -300,7 +295,7 @@ func Benchmark_RedisKeyCounter_Exists(b *testing.B) {
 	}
 }
 
-func Benchmark_RedisKeyCounter_Int64_ValidNumber(b *testing.B) {
+func Benchmark_RedisKeyCounterFloat64_Float64_ValidNumber(b *testing.B) {
 	logger := log4go.NewDefaultLogger(log4go.CRITICAL)
 	server, err := dog_pool.StartRedisServer(&logger)
 	if nil != err {
@@ -308,19 +303,19 @@ func Benchmark_RedisKeyCounter_Int64_ValidNumber(b *testing.B) {
 	}
 	defer server.Close()
 
-	value, _ := MakeRedisKeyCounter(server.Connection(), "Bob")
+	value, _ := MakeRedisKeyCounterFloat64(server.Connection(), "Bob")
 
 	// Valid number:
-	server.Connection().Cmd("SET", "Bob", "123")
+	server.Connection().Cmd("SET", "Bob", "123.456")
 
 	b.ResetTimer()
 
 	for i := 0; i < b.N; i++ {
-		value.Int64()
+		value.Float64()
 	}
 }
 
-func Benchmark_RedisKeyCounter_Int64_CacheMiss(b *testing.B) {
+func Benchmark_RedisKeyCounterFloat64_Float64_CacheMiss(b *testing.B) {
 	logger := log4go.NewDefaultLogger(log4go.CRITICAL)
 	server, err := dog_pool.StartRedisServer(&logger)
 	if nil != err {
@@ -328,16 +323,16 @@ func Benchmark_RedisKeyCounter_Int64_CacheMiss(b *testing.B) {
 	}
 	defer server.Close()
 
-	value, _ := MakeRedisKeyCounter(server.Connection(), "Bob")
+	value, _ := MakeRedisKeyCounterFloat64(server.Connection(), "Bob")
 
 	b.ResetTimer()
 
 	for i := 0; i < b.N; i++ {
-		value.Int64()
+		value.Float64()
 	}
 }
 
-func Benchmark_RedisKeyCounter_Int64_InvalidNumber(b *testing.B) {
+func Benchmark_RedisKeyCounterFloat64_Float64_InvalidNumber(b *testing.B) {
 	logger := log4go.NewDefaultLogger(log4go.CRITICAL)
 	server, err := dog_pool.StartRedisServer(&logger)
 	if nil != err {
@@ -345,7 +340,7 @@ func Benchmark_RedisKeyCounter_Int64_InvalidNumber(b *testing.B) {
 	}
 	defer server.Close()
 
-	value, _ := MakeRedisKeyCounter(server.Connection(), "Bob")
+	value, _ := MakeRedisKeyCounterFloat64(server.Connection(), "Bob")
 
 	// Valid number:
 	server.Connection().Cmd("SET", "Bob", "Gary")
@@ -353,11 +348,11 @@ func Benchmark_RedisKeyCounter_Int64_InvalidNumber(b *testing.B) {
 	b.ResetTimer()
 
 	for i := 0; i < b.N; i++ {
-		value.Int64()
+		value.Float64()
 	}
 }
 
-func Benchmark_RedisKeyCounter_Get(b *testing.B) {
+func Benchmark_RedisKeyCounterFloat64_Get(b *testing.B) {
 	logger := log4go.NewDefaultLogger(log4go.CRITICAL)
 	server, err := dog_pool.StartRedisServer(&logger)
 	if nil != err {
@@ -365,10 +360,10 @@ func Benchmark_RedisKeyCounter_Get(b *testing.B) {
 	}
 	defer server.Close()
 
-	value, _ := MakeRedisKeyCounter(server.Connection(), "Bob")
+	value, _ := MakeRedisKeyCounterFloat64(server.Connection(), "Bob")
 
 	// Valid number:
-	server.Connection().Cmd("SET", "Bob", "123")
+	server.Connection().Cmd("SET", "Bob", "123.456")
 
 	b.ResetTimer()
 
@@ -377,7 +372,7 @@ func Benchmark_RedisKeyCounter_Get(b *testing.B) {
 	}
 }
 
-func Benchmark_RedisKeyCounter_Set(b *testing.B) {
+func Benchmark_RedisKeyCounterFloat64_Set(b *testing.B) {
 	logger := log4go.NewDefaultLogger(log4go.CRITICAL)
 	server, err := dog_pool.StartRedisServer(&logger)
 	if nil != err {
@@ -385,7 +380,7 @@ func Benchmark_RedisKeyCounter_Set(b *testing.B) {
 	}
 	defer server.Close()
 
-	value, _ := MakeRedisKeyCounter(server.Connection(), "Bob")
+	value, _ := MakeRedisKeyCounterFloat64(server.Connection(), "Bob")
 
 	// Valid number:
 	server.Connection().Cmd("SET", "Bob", "000")
@@ -393,11 +388,11 @@ func Benchmark_RedisKeyCounter_Set(b *testing.B) {
 	b.ResetTimer()
 
 	for i := 0; i < b.N; i++ {
-		value.Set(123)
+		value.Set(123.456)
 	}
 }
 
-func Benchmark_RedisKeyCounter_Delete(b *testing.B) {
+func Benchmark_RedisKeyCounterFloat64_Delete(b *testing.B) {
 	logger := log4go.NewDefaultLogger(log4go.CRITICAL)
 	server, err := dog_pool.StartRedisServer(&logger)
 	if nil != err {
@@ -405,7 +400,7 @@ func Benchmark_RedisKeyCounter_Delete(b *testing.B) {
 	}
 	defer server.Close()
 
-	value, _ := MakeRedisKeyCounter(server.Connection(), "Bob")
+	value, _ := MakeRedisKeyCounterFloat64(server.Connection(), "Bob")
 
 	b.ResetTimer()
 
@@ -414,7 +409,7 @@ func Benchmark_RedisKeyCounter_Delete(b *testing.B) {
 	}
 }
 
-func Benchmark_RedisKeyCounter_Add(b *testing.B) {
+func Benchmark_RedisKeyCounterFloat64_Add(b *testing.B) {
 	logger := log4go.NewDefaultLogger(log4go.CRITICAL)
 	server, err := dog_pool.StartRedisServer(&logger)
 	if nil != err {
@@ -422,7 +417,7 @@ func Benchmark_RedisKeyCounter_Add(b *testing.B) {
 	}
 	defer server.Close()
 
-	value, _ := MakeRedisKeyCounter(server.Connection(), "Bob")
+	value, _ := MakeRedisKeyCounterFloat64(server.Connection(), "Bob")
 
 	b.ResetTimer()
 
@@ -431,7 +426,7 @@ func Benchmark_RedisKeyCounter_Add(b *testing.B) {
 	}
 }
 
-func Benchmark_RedisKeyCounter_Sub(b *testing.B) {
+func Benchmark_RedisKeyCounterFloat64_Sub(b *testing.B) {
 	logger := log4go.NewDefaultLogger(log4go.CRITICAL)
 	server, err := dog_pool.StartRedisServer(&logger)
 	if nil != err {
@@ -439,7 +434,7 @@ func Benchmark_RedisKeyCounter_Sub(b *testing.B) {
 	}
 	defer server.Close()
 
-	value, _ := MakeRedisKeyCounter(server.Connection(), "Bob")
+	value, _ := MakeRedisKeyCounterFloat64(server.Connection(), "Bob")
 
 	b.ResetTimer()
 
@@ -448,7 +443,7 @@ func Benchmark_RedisKeyCounter_Sub(b *testing.B) {
 	}
 }
 
-func Benchmark_RedisKeyCounter_Increment(b *testing.B) {
+func Benchmark_RedisKeyCounterFloat64_Increment(b *testing.B) {
 	logger := log4go.NewDefaultLogger(log4go.CRITICAL)
 	server, err := dog_pool.StartRedisServer(&logger)
 	if nil != err {
@@ -456,7 +451,7 @@ func Benchmark_RedisKeyCounter_Increment(b *testing.B) {
 	}
 	defer server.Close()
 
-	value, _ := MakeRedisKeyCounter(server.Connection(), "Bob")
+	value, _ := MakeRedisKeyCounterFloat64(server.Connection(), "Bob")
 
 	b.ResetTimer()
 
@@ -465,7 +460,7 @@ func Benchmark_RedisKeyCounter_Increment(b *testing.B) {
 	}
 }
 
-func Benchmark_RedisKeyCounter_Decrement(b *testing.B) {
+func Benchmark_RedisKeyCounterFloat64_Decrement(b *testing.B) {
 	logger := log4go.NewDefaultLogger(log4go.CRITICAL)
 	server, err := dog_pool.StartRedisServer(&logger)
 	if nil != err {
@@ -473,7 +468,7 @@ func Benchmark_RedisKeyCounter_Decrement(b *testing.B) {
 	}
 	defer server.Close()
 
-	value, _ := MakeRedisKeyCounter(server.Connection(), "Bob")
+	value, _ := MakeRedisKeyCounterFloat64(server.Connection(), "Bob")
 
 	b.ResetTimer()
 
