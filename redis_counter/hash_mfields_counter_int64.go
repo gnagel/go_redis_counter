@@ -2,16 +2,17 @@ package redis_counter
 
 import "fmt"
 import "github.com/gnagel/dog_pool/dog_pool"
+import . "github.com/gnagel/go_map_to_ptrs/map_to_ptrs"
 
 type RedisHashMFieldsCounterInt64 struct {
-	Redis  dog_pool.RedisClientInterface
+	Redis  *dog_pool.RedisConnection
 	KEY    string
 	FIELDS []string
-	cache  *PtrMapInt64
+	Cache  MapStringToInt64Ptrs
 }
 
 // Make a new instance of RedisHashMFieldsCounterInt64
-func MakeRedisHashMFieldsCounterInt64(redis dog_pool.RedisClientInterface, key string, fields ...string) (*RedisHashMFieldsCounterInt64, error) {
+func MakeRedisHashMFieldsCounterInt64(redis *dog_pool.RedisConnection, key string, fields ...string) (*RedisHashMFieldsCounterInt64, error) {
 	switch {
 	case nil == redis:
 		return nil, fmt.Errorf("Nil redis connection")
@@ -30,18 +31,21 @@ func MakeRedisHashMFieldsCounterInt64(redis dog_pool.RedisClientInterface, key s
 			Redis:  redis,
 			KEY:    key,
 			FIELDS: fields,
-			cache:  makePtrMapInt64(len(fields)),
+			Cache:  MakeMapStringToInt64Ptrs(len(fields)),
 		}, nil
 	}
 }
 
-func (p *RedisHashMFieldsCounterInt64) LastValue(field string) *int64 {
-	return p.cache.Value(field)
+// Clear the contents of the cache
+func (p *RedisHashMFieldsCounterInt64) CacheReset() {
+	for _, key := range p.FIELDS {
+		p.Cache.Set(key, nil)
+	}
 }
 
 // Format the values as a string; uses the cached "LastValues" field
 func (p *RedisHashMFieldsCounterInt64) String() string {
-	return fmt.Sprintf("%s[%s]", p.KEY, p.cache.String(p.FIELDS))
+	return fmt.Sprintf("%s[%s]", p.KEY, p.Cache.String())
 }
 
 // Get the value of the counters; saves the counter to "LastValues"
@@ -50,39 +54,14 @@ func (p *RedisHashMFieldsCounterInt64) MInt64() ([]int64, error) {
 }
 
 func (p *RedisHashMFieldsCounterInt64) MExists() ([]bool, error) {
-	p.cache.Reset()
+	p.CacheReset()
 
-	count := len(p.FIELDS)
-	commands := make([]*dog_pool.RedisBatchCommand, count)
-	for i, field := range p.FIELDS {
-		commands[i] = dog_pool.MakeRedisBatchCommandHashExists(p.KEY, field)
-	}
-
-	err := dog_pool.RedisBatchCommands(commands).ExecuteBatch(p.Redis)
-	if err != nil {
-		return nil, err
-	}
-
-	exists := make([]bool, count)
-	for i := range p.FIELDS {
-		reply := commands[i].Reply()
-		if nil != reply.Err {
-			return nil, reply.Err
-		}
-
-		ok, err := reply.Int()
-		if err != nil {
-			return nil, err
-		}
-
-		exists[i] = ok == 1
-	}
-
-	return exists, nil
+	return p.Redis.HashFieldsExist(p.KEY, p.FIELDS...)
 }
 
 func (p *RedisHashMFieldsCounterInt64) MDelete() error {
-	p.cache.Reset()
+	p.CacheReset()
+
 	reply := p.Redis.Cmd("HDEL", p.KEY, p.FIELDS)
 	return reply.Err
 }
@@ -116,7 +95,7 @@ func (p *RedisHashMFieldsCounterInt64) MDecrement() ([]int64, error) {
 //
 
 func (p *RedisHashMFieldsCounterInt64) operationReturnsAmounts(cmd string) ([]int64, error) {
-	p.cache.Reset()
+	p.CacheReset()
 
 	reply := p.Redis.Cmd(cmd, p.KEY, p.FIELDS)
 	switch {
@@ -131,7 +110,7 @@ func (p *RedisHashMFieldsCounterInt64) operationReturnsAmounts(cmd string) ([]in
 			case nil != err:
 				return nil, err
 			case nil != ptr:
-				p.cache.Set(field, ptr)
+				p.Cache.Set(field, ptr)
 				values[i] = *ptr
 			}
 		}
@@ -141,7 +120,7 @@ func (p *RedisHashMFieldsCounterInt64) operationReturnsAmounts(cmd string) ([]in
 }
 
 func (p *RedisHashMFieldsCounterInt64) operationReturnsAmount(cmd string) ([]int64, error) {
-	p.cache.Reset()
+	p.CacheReset()
 
 	count := len(p.FIELDS)
 	commands := make([]*dog_pool.RedisBatchCommand, count)
@@ -163,7 +142,7 @@ func (p *RedisHashMFieldsCounterInt64) operationReturnsAmount(cmd string) ([]int
 		case nil != err:
 			return nil, err
 		case nil != ptr:
-			p.cache.Set(field, ptr)
+			p.Cache.Set(field, ptr)
 			values[i] = *ptr
 		}
 	}
@@ -172,7 +151,7 @@ func (p *RedisHashMFieldsCounterInt64) operationReturnsAmount(cmd string) ([]int
 }
 
 func (p *RedisHashMFieldsCounterInt64) operationModifiesAmounts(cmd string, amount int64) ([]int64, error) {
-	p.cache.Reset()
+	p.CacheReset()
 
 	count := len(p.FIELDS)
 	amount_bytes := []byte(fmt.Sprintf("%d", amount))
@@ -196,7 +175,7 @@ func (p *RedisHashMFieldsCounterInt64) operationModifiesAmounts(cmd string, amou
 		case nil != err:
 			return nil, err
 		case nil != ptr:
-			p.cache.Set(field, ptr)
+			p.Cache.Set(field, ptr)
 			values[i] = *ptr
 		}
 	}
@@ -205,7 +184,7 @@ func (p *RedisHashMFieldsCounterInt64) operationModifiesAmounts(cmd string, amou
 }
 
 func (p *RedisHashMFieldsCounterInt64) operationReplacesAmounts(amount int64) ([]int64, error) {
-	p.cache.Reset()
+	p.CacheReset()
 
 	count := len(p.FIELDS)
 	amount_bytes := []byte(fmt.Sprintf("%d", amount))
@@ -221,7 +200,7 @@ func (p *RedisHashMFieldsCounterInt64) operationReplacesAmounts(amount int64) ([
 
 	values := make([]int64, count)
 	for i, field := range p.FIELDS {
-		p.cache.Set(field, &amount)
+		p.Cache.Set(field, &amount)
 		values[i] = amount
 	}
 

@@ -2,15 +2,16 @@ package redis_counter
 
 import "fmt"
 import "github.com/gnagel/dog_pool/dog_pool"
+import . "github.com/gnagel/go_map_to_ptrs/map_to_ptrs"
 
 type RedisMKeysCounterInt64 struct {
-	Redis dog_pool.RedisClientInterface
+	Redis *dog_pool.RedisConnection
 	KEYS  []string
-	cache *PtrMapInt64
+	Cache MapStringToInt64Ptrs
 }
 
 // Make a new instance of RedisMKeysCounterInt64
-func MakeRedisMKeysCounterInt64(redis dog_pool.RedisClientInterface, keys ...string) (*RedisMKeysCounterInt64, error) {
+func MakeRedisMKeysCounterInt64(redis *dog_pool.RedisConnection, keys ...string) (*RedisMKeysCounterInt64, error) {
 	switch {
 	case nil == redis:
 		return nil, fmt.Errorf("Nil redis connection")
@@ -23,17 +24,26 @@ func MakeRedisMKeysCounterInt64(redis dog_pool.RedisClientInterface, keys ...str
 			}
 		}
 
-		return &RedisMKeysCounterInt64{redis, keys, makePtrMapInt64(len(keys))}, nil
+		p := &RedisMKeysCounterInt64{
+			Redis: redis,
+			KEYS:  keys,
+			Cache: MakeMapStringToInt64Ptrs(len(keys)),
+		}
+		p.CacheReset()
+		return p, nil
 	}
 }
 
-func (p *RedisMKeysCounterInt64) LastValue(key string) *int64 {
-	return p.cache.Value(key)
+// Clear the contents of the cache
+func (p *RedisMKeysCounterInt64) CacheReset() {
+	for _, key := range p.KEYS {
+		p.Cache.Set(key, nil)
+	}
 }
 
-// Format the values as a string; uses the cached "LastValues" field
+// Format the values as a string
 func (p *RedisMKeysCounterInt64) String() string {
-	return p.cache.String(p.KEYS)
+	return p.Cache.String()
 }
 
 // Get the value of the counters; saves the counter to "LastValues"
@@ -42,39 +52,14 @@ func (p *RedisMKeysCounterInt64) MInt64() ([]int64, error) {
 }
 
 func (p *RedisMKeysCounterInt64) MExists() ([]bool, error) {
-	p.cache.Reset()
+	p.CacheReset()
 
-	count := len(p.KEYS)
-	commands := make([]*dog_pool.RedisBatchCommand, count)
-	for i, key := range p.KEYS {
-		commands[i] = dog_pool.MakeRedisBatchCommandExists(key)
-	}
-
-	err := dog_pool.RedisBatchCommands(commands).ExecuteBatch(p.Redis)
-	if err != nil {
-		return nil, err
-	}
-
-	exists := make([]bool, count)
-	for i := range p.KEYS {
-		reply := commands[i].Reply()
-		if nil != reply.Err {
-			return nil, reply.Err
-		}
-
-		ok, err := reply.Int()
-		if err != nil {
-			return nil, err
-		}
-
-		exists[i] = ok == 1
-	}
-
-	return exists, nil
+	return p.Redis.KeysExist(p.KEYS...)
 }
 
 func (p *RedisMKeysCounterInt64) MDelete() error {
-	p.cache.Reset()
+	p.CacheReset()
+
 	reply := p.Redis.Cmd("DEL", p.KEYS)
 	return reply.Err
 }
@@ -108,7 +93,8 @@ func (p *RedisMKeysCounterInt64) MDecrement() ([]int64, error) {
 //
 
 func (p *RedisMKeysCounterInt64) operationReturnsAmounts(cmd string) ([]int64, error) {
-	p.cache.Reset()
+	p.CacheReset()
+
 	count := len(p.KEYS)
 
 	reply := p.Redis.Cmd(cmd, p.KEYS)
@@ -123,7 +109,7 @@ func (p *RedisMKeysCounterInt64) operationReturnsAmounts(cmd string) ([]int64, e
 			case nil != err:
 				return nil, err
 			case nil != ptr:
-				p.cache.Set(key, ptr)
+				p.Cache.Set(key, ptr)
 				values[i] = *ptr
 			}
 		}
@@ -133,7 +119,8 @@ func (p *RedisMKeysCounterInt64) operationReturnsAmounts(cmd string) ([]int64, e
 }
 
 func (p *RedisMKeysCounterInt64) operationReturnsAmount(cmd string) ([]int64, error) {
-	p.cache.Reset()
+	p.CacheReset()
+
 	count := len(p.KEYS)
 
 	commands := make([]*dog_pool.RedisBatchCommand, count)
@@ -154,7 +141,7 @@ func (p *RedisMKeysCounterInt64) operationReturnsAmount(cmd string) ([]int64, er
 		case nil != err:
 			return nil, err
 		case nil != ptr:
-			p.cache.Set(key, ptr)
+			p.Cache.Set(key, ptr)
 			values[i] = *ptr
 		}
 	}
@@ -163,7 +150,7 @@ func (p *RedisMKeysCounterInt64) operationReturnsAmount(cmd string) ([]int64, er
 }
 
 func (p *RedisMKeysCounterInt64) operationModifiesAmounts(cmd string, amount int64) ([]int64, error) {
-	p.cache.Reset()
+	p.CacheReset()
 
 	count := len(p.KEYS)
 	amount_bytes := []byte(fmt.Sprintf("%d", amount))
@@ -186,7 +173,7 @@ func (p *RedisMKeysCounterInt64) operationModifiesAmounts(cmd string, amount int
 		case nil != err:
 			return nil, err
 		case nil != ptr:
-			p.cache.Set(key, ptr)
+			p.Cache.Set(key, ptr)
 			values[i] = *ptr
 		}
 	}
@@ -195,7 +182,8 @@ func (p *RedisMKeysCounterInt64) operationModifiesAmounts(cmd string, amount int
 }
 
 func (p *RedisMKeysCounterInt64) operationReplacesAmounts(amount int64) ([]int64, error) {
-	p.cache.Reset()
+	p.CacheReset()
+
 	count := len(p.KEYS)
 
 	amount_bytes := []byte(fmt.Sprintf("%d", amount))
@@ -211,7 +199,7 @@ func (p *RedisMKeysCounterInt64) operationReplacesAmounts(amount int64) ([]int64
 
 	values := make([]int64, count)
 	for i, key := range p.KEYS {
-		p.cache.Set(key, &amount)
+		p.Cache.Set(key, &amount)
 		values[i] = amount
 	}
 
