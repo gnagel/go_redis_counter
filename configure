@@ -22,6 +22,7 @@ echo ""
 go get -u "github.com/orfjackal/gospec/src/gospec"
 go get -u "github.com/gnagel/dog_pool/dog_pool"
 go get -u "github.com/alecthomas/log4go"
+go get -u "github.com/gnagel/go_map_to_ptrs/map_to_ptrs"
 
 echo ""
 echo ".................................................................."

@@ -2,21 +2,21 @@ package redis_counter
 
 import "fmt"
 import "github.com/gnagel/dog_pool/dog_pool"
+import . "github.com/gnagel/go_map_to_ptrs/map_to_ptrs"
 
 type RedisMKeysCounterFloat64 struct {
-	Redis dog_pool.RedisClientInterface
+	Redis *dog_pool.RedisConnection
 	KEYS  []string
-	cache *PtrMapFloat64
+	Cache MapStringToFloat64Ptrs
 }
 
 // Make a new instance of RedisMKeysCounterFloat64
-func MakeRedisMKeysCounterFloat64(redis dog_pool.RedisClientInterface, keys ...string) (*RedisMKeysCounterFloat64, error) {
+func MakeRedisMKeysCounterFloat64(redis *dog_pool.RedisConnection, keys ...string) (*RedisMKeysCounterFloat64, error) {
 	switch {
 	case nil == redis:
 		return nil, fmt.Errorf("Nil redis connection")
 	case len(keys) == 0:
 		return nil, fmt.Errorf("Empty redis keys")
-
 	default:
 		for i, key := range keys {
 			if len(key) == 0 {
@@ -24,17 +24,26 @@ func MakeRedisMKeysCounterFloat64(redis dog_pool.RedisClientInterface, keys ...s
 			}
 		}
 
-		return &RedisMKeysCounterFloat64{redis, keys, makePtrMapFloat64(len(keys))}, nil
+		p := &RedisMKeysCounterFloat64{
+			Redis: redis,
+			KEYS:  keys,
+			Cache: MakeMapStringToFloat64Ptrs(len(keys)),
+		}
+		p.CacheReset()
+		return p, nil
 	}
 }
 
-func (p *RedisMKeysCounterFloat64) LastValue(key string) *float64 {
-	return p.cache.Value(key)
+// Clear the contents of the cache
+func (p *RedisMKeysCounterFloat64) CacheReset() {
+	for _, key := range p.KEYS {
+		p.Cache.Set(key, nil)
+	}
 }
 
-// Format the values as a string; uses the cached "LastValues" field
+// Format the values as a string
 func (p *RedisMKeysCounterFloat64) String() string {
-	return p.cache.String(p.KEYS)
+	return p.Cache.String()
 }
 
 // Get the value of the counters; saves the counter to "LastValues"
@@ -43,39 +52,14 @@ func (p *RedisMKeysCounterFloat64) MFloat64() ([]float64, error) {
 }
 
 func (p *RedisMKeysCounterFloat64) MExists() ([]bool, error) {
-	p.cache.Reset()
+	p.CacheReset()
 
-	count := len(p.KEYS)
-	commands := make([]*dog_pool.RedisBatchCommand, count)
-	for i, key := range p.KEYS {
-		commands[i] = dog_pool.MakeRedisBatchCommandExists(key)
-	}
-
-	err := dog_pool.RedisBatchCommands(commands).ExecuteBatch(p.Redis)
-	if err != nil {
-		return nil, err
-	}
-
-	exists := make([]bool, count)
-	for i := range p.KEYS {
-		reply := commands[i].Reply()
-		if nil != reply.Err {
-			return nil, reply.Err
-		}
-
-		ok, err := reply.Int()
-		if err != nil {
-			return nil, err
-		}
-
-		exists[i] = ok == 1
-	}
-
-	return exists, nil
+	return p.Redis.KeysExist(p.KEYS...)
 }
 
 func (p *RedisMKeysCounterFloat64) MDelete() error {
-	p.cache.Reset()
+	p.CacheReset()
+
 	reply := p.Redis.Cmd("DEL", p.KEYS)
 	return reply.Err
 }
@@ -89,19 +73,19 @@ func (p *RedisMKeysCounterFloat64) MSet(amount float64) ([]float64, error) {
 }
 
 func (p *RedisMKeysCounterFloat64) MAdd(amount float64) ([]float64, error) {
-	return p.operationModifiesAmounts("INCRBYFLOAT", amount)
+	return p.operationModifiesAmounts("INCRBY", amount)
 }
 
 func (p *RedisMKeysCounterFloat64) MSub(amount float64) ([]float64, error) {
-	return p.MAdd(-1 * amount)
+	return p.operationModifiesAmounts("DECRBY", amount)
 }
 
 func (p *RedisMKeysCounterFloat64) MIncrement() ([]float64, error) {
-	return p.MAdd(1.0)
+	return p.operationReturnsAmount("INCR")
 }
 
 func (p *RedisMKeysCounterFloat64) MDecrement() ([]float64, error) {
-	return p.MSub(1.0)
+	return p.operationReturnsAmount("DECR")
 }
 
 //
@@ -109,24 +93,23 @@ func (p *RedisMKeysCounterFloat64) MDecrement() ([]float64, error) {
 //
 
 func (p *RedisMKeysCounterFloat64) operationReturnsAmounts(cmd string) ([]float64, error) {
-	p.cache.Reset()
+	p.CacheReset()
+
 	count := len(p.KEYS)
 
 	reply := p.Redis.Cmd(cmd, p.KEYS)
 	switch {
 	case nil != reply.Err:
 		return nil, reply.Err
-
 	default:
 		values := make([]float64, count)
 		for i, key := range p.KEYS {
 			ptr, err := toFloat64Ptr(reply.Elems[i])
 			switch {
 			case nil != err:
-				p.cache.Reset()
 				return nil, err
 			case nil != ptr:
-				p.cache.Set(key, ptr)
+				p.Cache.Set(key, ptr)
 				values[i] = *ptr
 			}
 		}
@@ -136,7 +119,8 @@ func (p *RedisMKeysCounterFloat64) operationReturnsAmounts(cmd string) ([]float6
 }
 
 func (p *RedisMKeysCounterFloat64) operationReturnsAmount(cmd string) ([]float64, error) {
-	p.cache.Reset()
+	p.CacheReset()
+
 	count := len(p.KEYS)
 
 	commands := make([]*dog_pool.RedisBatchCommand, count)
@@ -155,10 +139,9 @@ func (p *RedisMKeysCounterFloat64) operationReturnsAmount(cmd string) ([]float64
 		ptr, err := toFloat64Ptr(commands[i].Reply())
 		switch {
 		case nil != err:
-			p.cache.Reset()
 			return nil, err
 		case nil != ptr:
-			p.cache.Set(key, ptr)
+			p.Cache.Set(key, ptr)
 			values[i] = *ptr
 		}
 	}
@@ -167,10 +150,10 @@ func (p *RedisMKeysCounterFloat64) operationReturnsAmount(cmd string) ([]float64
 }
 
 func (p *RedisMKeysCounterFloat64) operationModifiesAmounts(cmd string, amount float64) ([]float64, error) {
-	p.cache.Reset()
+	p.CacheReset()
 
 	count := len(p.KEYS)
-	amount_bytes := []byte(fmt.Sprintf("%f", amount))
+	amount_bytes := []byte(fmt.Sprintf("%d", amount))
 	commands := make([]*dog_pool.RedisBatchCommand, count)
 	for i, key := range p.KEYS {
 		commands[i] = dog_pool.MakeRedisBatchCommand(cmd)
@@ -188,10 +171,9 @@ func (p *RedisMKeysCounterFloat64) operationModifiesAmounts(cmd string, amount f
 		ptr, err := toFloat64Ptr(commands[i].Reply())
 		switch {
 		case nil != err:
-			p.cache.Reset()
 			return nil, err
 		case nil != ptr:
-			p.cache.Set(key, ptr)
+			p.Cache.Set(key, ptr)
 			values[i] = *ptr
 		}
 	}
@@ -200,10 +182,11 @@ func (p *RedisMKeysCounterFloat64) operationModifiesAmounts(cmd string, amount f
 }
 
 func (p *RedisMKeysCounterFloat64) operationReplacesAmounts(amount float64) ([]float64, error) {
-	p.cache.Reset()
+	p.CacheReset()
+
 	count := len(p.KEYS)
 
-	amount_bytes := []byte(fmt.Sprintf("%f", amount))
+	amount_bytes := []byte(fmt.Sprintf("%d", amount))
 	buffer := make([][]byte, len(p.KEYS)*2)[0:0]
 	for _, key := range p.KEYS {
 		buffer = append(buffer, []byte(key), amount_bytes)
@@ -216,7 +199,7 @@ func (p *RedisMKeysCounterFloat64) operationReplacesAmounts(amount float64) ([]f
 
 	values := make([]float64, count)
 	for i, key := range p.KEYS {
-		p.cache.Set(key, &amount)
+		p.Cache.Set(key, &amount)
 		values[i] = amount
 	}
 

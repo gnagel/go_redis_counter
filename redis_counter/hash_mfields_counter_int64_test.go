@@ -46,11 +46,9 @@ func RedisHashMFieldsCounterInt64Specs(c gospec.Context) {
 		c.Expect(value.String(), gospec.Equals, "Key[Bob = NaN, Gary = NaN, AAA = NaN, Missing = NaN]")
 
 		counter := int64(123)
-		value.cache.m = map[string]*int64{
-			"AAA":  &counter,
-			"Bob":  &counter,
-			"Gary": &counter,
-		}
+		value.Cache.Set("AAA", &counter)
+		value.Cache.Set("Bob", &counter)
+		value.Cache.Set("Gary", &counter)
 
 		// Order of FIELDS determines output order
 		c.Expect(value.String(), gospec.Equals, "Key[Bob = 123, Gary = 123, AAA = 123, Missing = NaN]")
@@ -77,7 +75,7 @@ func RedisHashMFieldsCounterInt64Specs(c gospec.Context) {
 		for _, ok := range oks {
 			c.Expect(ok, gospec.Equals, true)
 		}
-		c.Expect(value.cache.Len(), gospec.Equals, 0)
+		c.Expect(value.Cache.Len(), gospec.Equals, 0)
 
 		// Cache Miss
 		server.Connection().Cmd("HDEL", value.KEY, value.FIELDS)
@@ -87,7 +85,7 @@ func RedisHashMFieldsCounterInt64Specs(c gospec.Context) {
 		for _, ok := range oks {
 			c.Expect(ok, gospec.Equals, false)
 		}
-		c.Expect(value.cache.Len(), gospec.Equals, 0)
+		c.Expect(value.Cache.Len(), gospec.Equals, 0)
 	})
 
 	c.Specify("[RedisHashMFieldsCounterInt64][MInt64] Gets value from Redis", func() {
@@ -112,7 +110,7 @@ func RedisHashMFieldsCounterInt64Specs(c gospec.Context) {
 			counter := counters[i]
 			c.Expect(counter, gospec.Equals, int64(123*math.Pow10(i)))
 
-			ptr := value.LastValue(field)
+			ptr := value.Cache.Value(field)
 			c.Expect(*ptr, gospec.Equals, int64(123*math.Pow10(i)))
 		}
 
@@ -120,7 +118,7 @@ func RedisHashMFieldsCounterInt64Specs(c gospec.Context) {
 		server.Connection().Cmd("HDEL", value.KEY, value.FIELDS)
 		counters, err = value.MInt64()
 		c.Expect(err, gospec.Equals, nil)
-		c.Expect(value.cache.Len(), gospec.Equals, 0)
+		c.Expect(value.Cache.Len(), gospec.Equals, 0)
 		c.Expect(len(counters), gospec.Equals, len(value.FIELDS))
 		for _, counter := range counters {
 			c.Expect(counter, gospec.Equals, int64(0))
@@ -134,7 +132,7 @@ func RedisHashMFieldsCounterInt64Specs(c gospec.Context) {
 		counters, err = value.MInt64()
 		c.Expect(err, gospec.Satisfies, nil != err)
 		c.Expect(len(counters), gospec.Equals, 0)
-		c.Expect(value.cache.Len(), gospec.Equals, 0)
+		c.Expect(value.Cache.Len(), gospec.Equals, 0)
 	})
 
 	c.Specify("[RedisHashMFieldsCounterInt64][MGet] Redis Operation", func() {
@@ -159,7 +157,7 @@ func RedisHashMFieldsCounterInt64Specs(c gospec.Context) {
 			counter := counters[i]
 			c.Expect(counter, gospec.Equals, int64(123*math.Pow10(i)))
 
-			ptr := value.LastValue(field)
+			ptr := value.Cache.Value(field)
 			c.Expect(*ptr, gospec.Equals, int64(123*math.Pow10(i)))
 		}
 
@@ -167,7 +165,7 @@ func RedisHashMFieldsCounterInt64Specs(c gospec.Context) {
 		server.Connection().Cmd("HDEL", value.KEY, value.FIELDS)
 		counters, err = value.MGet()
 		c.Expect(err, gospec.Equals, nil)
-		c.Expect(value.cache.Len(), gospec.Equals, 0)
+		c.Expect(value.Cache.Len(), gospec.Equals, 0)
 		c.Expect(len(counters), gospec.Equals, len(value.FIELDS))
 		for _, counter := range counters {
 			c.Expect(counter, gospec.Equals, int64(0))
@@ -181,7 +179,7 @@ func RedisHashMFieldsCounterInt64Specs(c gospec.Context) {
 		counters, err = value.MGet()
 		c.Expect(err, gospec.Satisfies, nil != err)
 		c.Expect(len(counters), gospec.Equals, 0)
-		c.Expect(value.cache.Len(), gospec.Equals, 0)
+		c.Expect(value.Cache.Len(), gospec.Equals, 0)
 	})
 
 	c.Specify("[RedisHashMFieldsCounterInt64][MDelete] Redis Operation", func() {
@@ -201,7 +199,7 @@ func RedisHashMFieldsCounterInt64Specs(c gospec.Context) {
 
 		err := value.MDelete()
 		c.Expect(err, gospec.Equals, nil)
-		c.Expect(value.cache.Len(), gospec.Equals, 0)
+		c.Expect(value.Cache.Len(), gospec.Equals, 0)
 
 		for _, field := range value.FIELDS {
 			ok, _ := server.Connection().Cmd("HEXISTS", value.KEY, field).Int()
@@ -225,7 +223,7 @@ func RedisHashMFieldsCounterInt64Specs(c gospec.Context) {
 		for i, counter := range counters {
 			c.Expect(counter, gospec.Equals, int64(123))
 
-			value := value.LastValue(value.FIELDS[i])
+			value := value.Cache.Value(value.FIELDS[i])
 			c.Expect(value, gospec.Satisfies, nil != value)
 			c.Expect(*value, gospec.Equals, int64(123))
 		}
@@ -260,7 +258,7 @@ func RedisHashMFieldsCounterInt64Specs(c gospec.Context) {
 		for i, counter := range counters {
 			c.Expect(counter, gospec.Equals, int64(123+555))
 
-			value := value.LastValue(value.FIELDS[i])
+			value := value.Cache.Value(value.FIELDS[i])
 			c.Expect(value, gospec.Satisfies, nil != value)
 			c.Expect(*value, gospec.Equals, int64(123+555))
 		}
@@ -295,7 +293,7 @@ func RedisHashMFieldsCounterInt64Specs(c gospec.Context) {
 		for i, counter := range counters {
 			c.Expect(counter, gospec.Equals, int64(123-555))
 
-			value := value.LastValue(value.FIELDS[i])
+			value := value.Cache.Value(value.FIELDS[i])
 			c.Expect(value, gospec.Satisfies, nil != value)
 			c.Expect(*value, gospec.Equals, int64(123-555))
 		}
@@ -330,7 +328,7 @@ func RedisHashMFieldsCounterInt64Specs(c gospec.Context) {
 		for i, counter := range counters {
 			c.Expect(counter, gospec.Equals, int64(123+1))
 
-			value := value.LastValue(value.FIELDS[i])
+			value := value.Cache.Value(value.FIELDS[i])
 			c.Expect(value, gospec.Satisfies, nil != value)
 			c.Expect(*value, gospec.Equals, int64(123+1))
 		}
@@ -365,7 +363,7 @@ func RedisHashMFieldsCounterInt64Specs(c gospec.Context) {
 		for i, counter := range counters {
 			c.Expect(counter, gospec.Equals, int64(123-1))
 
-			value := value.LastValue(value.FIELDS[i])
+			value := value.Cache.Value(value.FIELDS[i])
 			c.Expect(value, gospec.Satisfies, nil != value)
 			c.Expect(*value, gospec.Equals, int64(123-1))
 		}

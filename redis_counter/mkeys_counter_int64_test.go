@@ -39,11 +39,9 @@ func RedisMKeysCounterInt64Specs(c gospec.Context) {
 		c.Expect(value.String(), gospec.Equals, "Bob = NaN, Gary = NaN, AAA = NaN, Missing = NaN")
 
 		counter := int64(123)
-		value.cache.m = map[string]*int64{
-			"AAA":  &counter,
-			"Bob":  &counter,
-			"Gary": &counter,
-		}
+		value.Cache.Set("AAA", &counter)
+		value.Cache.Set("Bob", &counter)
+		value.Cache.Set("Gary", &counter)
 
 		// Order of Keys determines output order
 		c.Expect(value.String(), gospec.Equals, "Bob = 123, Gary = 123, AAA = 123, Missing = NaN")
@@ -70,7 +68,7 @@ func RedisMKeysCounterInt64Specs(c gospec.Context) {
 		for _, ok := range oks {
 			c.Expect(ok, gospec.Equals, true)
 		}
-		c.Expect(value.cache.Len(), gospec.Equals, 0)
+		c.Expect(value.Cache.Len(), gospec.Equals, 0)
 
 		// Cache Miss
 		server.Connection().Cmd("DEL", value.KEYS)
@@ -80,7 +78,7 @@ func RedisMKeysCounterInt64Specs(c gospec.Context) {
 		for _, ok := range oks {
 			c.Expect(ok, gospec.Equals, false)
 		}
-		c.Expect(value.cache.Len(), gospec.Equals, 0)
+		c.Expect(value.Cache.Len(), gospec.Equals, 0)
 	})
 
 	c.Specify("[RedisMKeysCounterInt64][MInt64] Gets value from Redis", func() {
@@ -105,7 +103,7 @@ func RedisMKeysCounterInt64Specs(c gospec.Context) {
 			counter := counters[i]
 			c.Expect(counter, gospec.Equals, int64(123*math.Pow10(i)))
 
-			ptr := value.LastValue(key)
+			ptr := value.Cache.Value(key)
 			c.Expect(*ptr, gospec.Equals, int64(123*math.Pow10(i)))
 		}
 
@@ -113,7 +111,7 @@ func RedisMKeysCounterInt64Specs(c gospec.Context) {
 		server.Connection().Cmd("DEL", value.KEYS)
 		counters, err = value.MInt64()
 		c.Expect(err, gospec.Equals, nil)
-		c.Expect(value.cache.Len(), gospec.Equals, 0)
+		c.Expect(value.Cache.Len(), gospec.Equals, 0)
 		c.Expect(len(counters), gospec.Equals, len(value.KEYS))
 		for _, counter := range counters {
 			c.Expect(counter, gospec.Equals, int64(0))
@@ -127,7 +125,7 @@ func RedisMKeysCounterInt64Specs(c gospec.Context) {
 		counters, err = value.MInt64()
 		c.Expect(err, gospec.Satisfies, nil != err)
 		c.Expect(len(counters), gospec.Equals, 0)
-		c.Expect(value.cache.Len(), gospec.Equals, 0)
+		c.Expect(value.Cache.Len(), gospec.Equals, 0)
 	})
 
 	c.Specify("[RedisMKeysCounterInt64][MGet] Redis Operation", func() {
@@ -152,7 +150,7 @@ func RedisMKeysCounterInt64Specs(c gospec.Context) {
 			counter := counters[i]
 			c.Expect(counter, gospec.Equals, int64(123*math.Pow10(i)))
 
-			ptr := value.LastValue(key)
+			ptr := value.Cache.Value(key)
 			c.Expect(*ptr, gospec.Equals, int64(123*math.Pow10(i)))
 		}
 
@@ -160,7 +158,7 @@ func RedisMKeysCounterInt64Specs(c gospec.Context) {
 		server.Connection().Cmd("DEL", value.KEYS)
 		counters, err = value.MGet()
 		c.Expect(err, gospec.Equals, nil)
-		c.Expect(value.cache.Len(), gospec.Equals, 0)
+		c.Expect(value.Cache.Len(), gospec.Equals, 0)
 		c.Expect(len(counters), gospec.Equals, len(value.KEYS))
 		for _, counter := range counters {
 			c.Expect(counter, gospec.Equals, int64(0))
@@ -174,7 +172,7 @@ func RedisMKeysCounterInt64Specs(c gospec.Context) {
 		counters, err = value.MGet()
 		c.Expect(err, gospec.Satisfies, nil != err)
 		c.Expect(len(counters), gospec.Equals, 0)
-		c.Expect(value.cache.Len(), gospec.Equals, 0)
+		c.Expect(value.Cache.Len(), gospec.Equals, 0)
 	})
 
 	c.Specify("[RedisMKeysCounterInt64][MDelete] Redis Operation", func() {
@@ -194,7 +192,7 @@ func RedisMKeysCounterInt64Specs(c gospec.Context) {
 
 		err := value.MDelete()
 		c.Expect(err, gospec.Equals, nil)
-		c.Expect(value.cache.Len(), gospec.Equals, 0)
+		c.Expect(value.Cache.Len(), gospec.Equals, 0)
 
 		for _, key := range value.KEYS {
 			ok, _ := server.Connection().Cmd("EXISTS", key).Int()
@@ -218,7 +216,7 @@ func RedisMKeysCounterInt64Specs(c gospec.Context) {
 		for i, counter := range counters {
 			c.Expect(counter, gospec.Equals, int64(123))
 
-			value := value.LastValue(value.KEYS[i])
+			value := value.Cache.Value(value.KEYS[i])
 			c.Expect(value, gospec.Satisfies, nil != value)
 			c.Expect(*value, gospec.Equals, int64(123))
 		}
@@ -253,7 +251,7 @@ func RedisMKeysCounterInt64Specs(c gospec.Context) {
 		for i, counter := range counters {
 			c.Expect(counter, gospec.Equals, int64(123+555))
 
-			value := value.LastValue(value.KEYS[i])
+			value := value.Cache.Value(value.KEYS[i])
 			c.Expect(value, gospec.Satisfies, nil != value)
 			c.Expect(*value, gospec.Equals, int64(123+555))
 		}
@@ -288,7 +286,7 @@ func RedisMKeysCounterInt64Specs(c gospec.Context) {
 		for i, counter := range counters {
 			c.Expect(counter, gospec.Equals, int64(123-555))
 
-			value := value.LastValue(value.KEYS[i])
+			value := value.Cache.Value(value.KEYS[i])
 			c.Expect(value, gospec.Satisfies, nil != value)
 			c.Expect(*value, gospec.Equals, int64(123-555))
 		}
@@ -323,7 +321,7 @@ func RedisMKeysCounterInt64Specs(c gospec.Context) {
 		for i, counter := range counters {
 			c.Expect(counter, gospec.Equals, int64(123+1))
 
-			value := value.LastValue(value.KEYS[i])
+			value := value.Cache.Value(value.KEYS[i])
 			c.Expect(value, gospec.Satisfies, nil != value)
 			c.Expect(*value, gospec.Equals, int64(123+1))
 		}
@@ -358,7 +356,7 @@ func RedisMKeysCounterInt64Specs(c gospec.Context) {
 		for i, counter := range counters {
 			c.Expect(counter, gospec.Equals, int64(123-1))
 
-			value := value.LastValue(value.KEYS[i])
+			value := value.Cache.Value(value.KEYS[i])
 			c.Expect(value, gospec.Satisfies, nil != value)
 			c.Expect(*value, gospec.Equals, int64(123-1))
 		}
